@@ -1,10 +1,34 @@
 import requests
+from django.http import HttpResponse, Http404
 
 url = "https://graph.facebook.com/v20.0/372273929306076/messages"
-token = "EAAHYD3KyxJQBO7cZC9jHuLXan5n3XZCOf9oxGpVM2onGA82YGnnlIWAKtA3ZCZAExrzrep4lI8hi8ftYoehfi6K3bnGBmeNypAC9E0Tc51FG1igPQOJq9vgUcC8y2TEeZBDzd1WrMJznZApG3zyMKu00bf3cZBqicq3EnfzHa62YryiDAcChV1OeztBZCaEZBhOndzcak06QaP8RaWDrbNZAUZD"
+media_url = "https://graph.facebook.com/v20.0/"
+token = "EAAHYD3KyxJQBOZBC22GHJvtWEp5KsRMHUVDJrcrM9ZCHNeAHguj4CJpo8AH2UJ1EZCe5T2kKmF8IRpgIFvakEBUXrphhsdT2oqxyAWTJyyBnBYByTaXrnO7ZAXmJ6ztZALUwvsigaZAPXDgtce72Fu7YXD9yNvLPCPfsLp7vDcjB0SgboWiOrEkLD04DLzq8Gv6Dtyh4G07wM9pHA7HRcZD"
 
 
 class Message_Response:
+
+    #sending bulk messages 
+    def send_bulk_message(self, phone_numbers, message):
+        headers = {
+            "Authorization": 'Bearer {}'.format(token),
+        }
+        for phone_number in phone_numbers:
+            data = {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": phone_number,
+                "type": "text",
+                "text": { "body": message }
+            }
+            response = requests.post(url, headers=headers, json=data)
+            if response.status_code == 200:
+                print(f"Message sent to  {phone_number}")
+            else:
+                print(f"Failed to send message to {phone_number}: {response.text}")
+        return True
+
+
 
     #sending custom  message if customer replied
     def send_message_individual(self, phone_number, message):
@@ -21,6 +45,10 @@ class Message_Response:
         response = requests.post(url, headers=headers, json=payload)
         ans = response.json()
         return ans
+
+
+
+
     #sending custom message with link if customer replied
     def send_link(self,phone_number,link):
         headers = {
@@ -39,8 +67,10 @@ class Message_Response:
         return response.json()
 
 
+
+
     #sending with custom templates message
-    def send_message(self,to_number, templates):
+    def send_message(self, to_number, templates):
         headers = {
             'Authorization': 'Bearer {0}'.format(token),
         }
@@ -58,8 +88,10 @@ class Message_Response:
         response = requests.post(url, json=payload,headers=headers)
         return response.json()
 
-    # sending message reply through image
-    def send_image_reply(self, phone_number, image_id):
+
+
+    # sending image
+    def send_image(self, phone_number, image_id):
         headers = {
             'Authorization': 'Bearer {}'.format(token),
             'content-type': 'application/json'
@@ -75,6 +107,67 @@ class Message_Response:
         }
         response = requests.post(url, json=payload, headers=headers)
         return response.json()
+
+    #sending repy to a message by image 
+    def send_image_reply(self, phone_number, message_id, image_id):
+        headers = {
+            'Authorization': 'Bearer {}'.format(token),
+            'content-type': 'application/json'
+        }
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phone_number,
+            "context": {
+                "message_id": message_id
+            },
+            "type": "image",
+            "image": {
+                "id": image_id
+            }
+        }
+        response = requests.post(url, json=payload, headers=headers)
+        return response.json()
+
+    
+    #deleting the image by id 
+    def delete_image(self, phone_number_id, image_id):
+        headers = {
+            'Authorization': 'Bearer {}'.format(token),
+            'content-type': 'application/json'
+        }
+        updateded_url = media_url + image_id +"/" + "?phone_number_id="+ phone_number
+        print(updateded_url)
+        response = requests.delete(url=updateded_url, headers=headers)
+        print(response)
+        return response.json()
+
+    #media upload
+    def get_media(self, phone_number_id, image_id):
+        headers = {
+            'Authorization': 'Bearer {}'.format(token),
+            'content-type': 'application/json'
+        }
+        updateded_url = media_url + image_id +"/" + "?phone_number_id="+ phone_number_id
+        response = requests.get(url=updateded_url, headers=headers)
+        return response.json()  
+
+    #download 
+    def download_media(self, img_url):
+        print(media_url + img_url)
+        response = requests.get(media_url + img_url, stream=True)
+        print(response)
+        if response.status_code == 200:
+            response_content = response.content
+            content_type = response.headers['Content-Type']
+
+            response = HttpResponse(response_content, content_type=content_type)
+            response['Content-Disposition'] = f'attachment; filename="{img_url.split("/")[-1]}"'
+            return response
+        else:
+            raise Http404(f"Failed to fetch media: {response.status_code}")
+    
+
     
     # sending button reply to text message
     def send_button_reply(self, phone_number, body_content, button_one_name, button_two_name):
@@ -193,6 +286,9 @@ class Message_Response:
 
 
 class Reply_Response:
+
+
+
     #send reply with text message
     def send_text_reply(self, phone_number,message_id, message):
         headers = {
@@ -215,6 +311,9 @@ class Reply_Response:
         response = requests.post(url, json=payload, headers=headers)
         return response.json()
 
+
+    
+    #sending reaction emoji to send message by customer
     def send_emoji_reply(self, phone_number, message_id,emoji):
         headers = {
             'Authorization': 'Bearer {}'.format(token),
@@ -232,6 +331,8 @@ class Reply_Response:
         }
         response = requests.post(url, json=payload, headers=headers)
         return response.json()
+
+        
     
     
     # sending reply to list of messages

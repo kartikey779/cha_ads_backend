@@ -2,9 +2,11 @@ from django.http import HttpResponse, JsonResponse
 from rest_framework.views import APIView
 from message_.utils.send import Reply_Response, Message_Response
 import json
-from message_.models import replies, Templates
+from message_.models import replies, Templates, Media, Contact
 import datetime
-from message_.api.serializers import template_serializer
+from message_.api.serializers import template_serializer, Contacts_serializer
+from django.http import JsonResponse
+
 # Create your views here.
 
 temp_data = Templates.objects.all()
@@ -13,7 +15,7 @@ class send_message(APIView):
         rev = request.POST.get('to_number')
         temp = request.POST.get('templates')
         b = Message_Response()
-        res = b.send_message(phone_number=rev)
+        res = b.send_message(to_number=rev, templates=temp)
         return JsonResponse(res)
 
 class send_link(APIView):
@@ -66,29 +68,70 @@ class WhatsApp_Webhook(APIView):
                         b.save()
                         
                         temp_message = template_serializer(temp_data,many=True).data
+
+
+                        if text.lower() == 'send':
+                            message = temp_message[0].get("template_message")
+                            formatted_message = message.replace("\\n", "\n")
+                            b = Message_Response()
+                            d = Reply_Response()
+                            emoji = "👍"
+                            numbers = ["919580266938","919305619760"]
+                            #mark as read 
+                            b.Mark_as_read(message_id=messageId)
+                            #emoji reaction
+                            d.send_emoji_reply(phone_number=phone_Number,message_id=messageId,emoji=emoji)
+                            #send message to selected contacts
+                            b.send_bulk_message(message=formatted_message, phone_numbers=numbers) 
+
+                        if text.lower() == 'get':
+                            b = Message_Response()
+                            img = "1013378269999323"
+                            c = b.get_media(phone_number_id=phone_id, image_id=img)
+                            url = c.get('url')
+                            img_id = c.get('id')
+                            print(url)
+                            dow = b.download_media(img_url=c.get('url'))
+                            print(c)
+                            print(dow)
+                            med = Media(url=url,img_id=img_id)
+                            med.save()
+
+                            
+
+                            b.send_link(phone_number=phone_Number,link=c.get('id'))
+                        
+
+                        if text.lower() == 'delete':
+                            b = Message_Response()
+                            img = "1664025064417484"
+                            b.delete_image(phone_number_id=phone_id,image_id=img)
                         
                         if text.lower() == 'hi':
-                            message = temp_message[0].get("templates")
+                            message = temp_message[0].get("template_message")
                             formatted_message = message.replace("\\n", "\n")
                             emoji = "👍"
                             d = Reply_Response()
                             b = Message_Response()
                             b.Mark_as_read(message_id=messageId)
                             d.send_emoji_reply(phone_number=phone_Number, message_id=messageId,emoji=emoji)
+                            img = "1013378269999323"
+                            # b.send_image_reply(phone_number=phone_Number,message_id=messageId,image_id=img)
+                            # b.send_image(phone_number=phone_Number, image_id=img)
                             # d.send_emoji_reply(phone_number=phone_Number, message_id=messageId, emoji=emoji)
 
                             header_text = "Hi  919580266938,"
                             body_text = "This is Delhi Metro Autometic\n Reply Chatbot.\n You can buy DMRC and \nAirport Express Line \nTicket here! \nPlease Choose your preferred language."
                             footer_text = "1.Hindi \n 2.English"
                             button_text = "first"
-                            d.send_reply_to_list_of_messages(phone_number=phone_Number, message_id=messageId, header_text=header_text, body_text=body_text, footer_text=footer_text, button_text=button_text)
+                            # d.send_reply_to_list_of_messages(phone_number=phone_Number, message_id=messageId, header_text=header_text, body_text=body_text, footer_text=footer_text, button_text=button_text)
 
                             body_content = "Hello, World This help you select in two buttons:"
                             button_one_name = "option1"
                             button_two_name = "option2"
-                            b.send_button_reply(phone_number=phone_Number, body_content=body_content,button_one_name=button_one_name,button_two_name=button_two_name)
+                            # b.send_button_reply(phone_number=phone_Number, body_content=body_content,button_one_name=button_one_name,button_two_name=button_two_name)
                             # d.send_product_message(phone_number=phone_Number)
-                            # d.send_text_reply(phone_number=phone_Number, message_id=messageId,message=formatted_message)
+                            d.send_text_reply(phone_number=phone_Number, message_id=messageId,message=formatted_message)
                             # send.send_message_individual(phone_Number, formatted_message)
                         else:
                             if text == '1':
@@ -112,12 +155,20 @@ class templates(APIView):
     
     def post(self, request):
         template_name = request.data.get("template_name")
+        template_type = request.data.get("template_type")
         templates_message = request.data.get("templates_message")
         temp_message = templates_message.replace("/","\\")
-        b = Templates(template_name=template_name,templates=temp_message)
+        b = Templates(template_name=template_name, template_type=template_type, template_message=temp_message)
         b.save()
-        d = template_serializer(temp_data,many=True)
         return HttpResponse("success", status=200)
+
+    def get(self, request):
+        temp_data = Templates.objects.all()
+        d = template_serializer(temp_data, many=True)
+        length = len(d.data)
+        for i in range(length):
+            d.data[i]['template_message'] = d.data[i]['template_message'].replace("\\n","/n")
+        return JsonResponse(d.data,safe=False)
 
 
 class text_reply(APIView):
@@ -136,4 +187,81 @@ class text_reply(APIView):
                     pass
         return HttpResponse("success", status=200)
 
+class contacts(APIView):
+    def post(self, request):
+        name = request.data.get('name')
+        phone_number = request.data.get('phone')
+        address = request.data.get('address')
+        tags = request.data.get('tags')
+        contact = Contact(name=name, phone_number=phone_number, address=address, tags=tags)
+        contact.save()
+        return HttpResponse("success", status=200)
+
+
+    def get(self, request):
+        contacts = Contact.objects.all()
+        serializer = Contacts_serializer(contacts, many=True)
+        return JsonResponse(serializer.data, safe=False)
+
+class UniqueTagsAndAddressesView(APIView):
+    def get(self, request):
+        # Retrieve all UserData objects
+        contacts = Contact.objects.all()
         
+        templates = Templates.objects.all()
+
+        unique_templates = set(templates.values_list('template_name', flat=True))
+        # Extract unique addresses
+        unique_addresses = set(contacts.values_list('address', flat=True))
+        
+        # Extract unique tags
+        unique_tags = set()
+        for contact in contacts:
+            unique_tags.update(contact.tags)
+        
+        # Return the unique addresses and tags as JSON response
+        return JsonResponse({
+            'unique_templates': list(unique_templates), 
+            'unique_addresses': list(unique_addresses),
+            'unique_tags': list(unique_tags)
+        })
+
+class Campaigns(APIView):
+
+    def post(self, request):
+        # retriving address from request
+        address = request.data.get('selectedAddress')
+        # retriving template from request
+        template_name = request.data.get('selectedTemplate')
+        # retriving tags from request
+        tags = request.data.get('selectedTag')
+
+        template = Templates.objects.filter(template_name=template_name)
+
+        # serializing template data to get message for bulk sending
+        serializer_template = template_serializer(template,many=True)
+        message = ""
+        for template_data in serializer_template.data:
+             message += template_data.get('template_message', '') + " "
+        message = message.strip()
+        formated_message = message.replace("\\n","\n ")
+
+        # retriving contacts from database
+        if tags:
+            contacts = Contact.objects.filter(tags__0=tags)
+        if address:
+            contacts = Contact.objects.filter(address=address)
+        
+        # contacts = Contact.objects.filter(address=address)
+        serializer_contact = Contacts_serializer(contacts,many=True)
+        phone_numbers = []
+        for contact_data in serializer_contact.data:
+            phone_numbers.append(contact_data.get('phone_number'))
+        print(phone_numbers)
+        #sending bulk message to numbers
+        b = Message_Response()
+        b.send_bulk_message(phone_numbers, formated_message)
+
+        return JsonResponse({
+            'data': 'Campaign created successfully'
+        })
